@@ -1,13 +1,41 @@
-# trader_assist/engine/glossary.py
+# engine/glossary.py
 
-GLOSSARY = {
-    "roce": "ROCE (Return on Capital Employed) measures how efficiently a company uses its capital to generate profit.",
-    "rsi": "RSI (Relative Strength Index) indicates overbought (>70) or oversold (<30) market conditions.",
-    "d/e": "D/E Ratio (Debt to Equity) compares a company’s total debt to shareholder equity.",
-    "pe": "P/E Ratio (Price to Earnings) reflects how much investors are willing to pay per rupee of earnings.",
-    "pb": "P/B Ratio (Price to Book) compares the market price to the book value of the stock.",
-}
+import json
+import os
+from engine.llm_provider import query_llm
 
-def explain_term(term):
-    key = term.lower().strip()
-    return GLOSSARY.get(key, f"🤔 No explanation found for '{term}'.")
+GLOSSARY_FILE = "data/glossary.json"
+
+# Load glossary from file
+def load_glossary():
+    if not os.path.exists(GLOSSARY_FILE):
+        return {}
+    with open(GLOSSARY_FILE, "r") as f:
+        return json.load(f)
+
+# Save glossary back to file
+def save_glossary(glossary):
+    with open(GLOSSARY_FILE, "w") as f:
+        json.dump(glossary, f, indent=2)
+
+# Explain term with optional LLM fallback
+def explain_term(term: str, allow_llm_fallback: bool = True) -> str:
+    glossary = load_glossary()
+    key = term.strip().lower()
+
+    if key in glossary:
+        return f"📘 {term.upper()}:\n{glossary[key]}"
+
+    if not allow_llm_fallback:
+        return f"🤔 No explanation found for '{term}'."
+
+    confirmation = input(f"❓ Term '{term}' not found. Ask LLM for explanation? [y/N]: ").strip().lower()
+    if confirmation != 'y':
+        return "🔕 Skipped querying LLM."
+
+    prompt = f"Explain the financial term '{term}' in simple, concise language suitable for an Indian retail investor."
+    definition = query_llm(prompt)
+
+    glossary[key] = definition
+    save_glossary(glossary)
+    return f"📘 {term.upper()} (via LLM):\n{definition}"
